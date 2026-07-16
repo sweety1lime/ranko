@@ -52,7 +52,7 @@ export async function getResults(slug: string): Promise<ResultsResponse | null> 
   const { tally, winnerId } = computeResults(opts, rankRows, decision.slug);
 
   // Место домешиваем после подсчёта, а не протаскиваем через computeResults: очки от адреса
-  // не зависят, и borda.ts остаётся чистым счётчиком (правило CLAUDE.md).
+  // не зависят, и borda.ts остаётся чистым счётчиком.
   const placeById = new Map(opts.map((o) => [o.id, o.place]));
   const rows: TallyRow[] = tally.map((entry) => ({
     ...entry,
