@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ranko
 
-## Getting Started
+Групповые решения без сорока сообщений «ну а ты что хочешь?».
 
-First, run the development server:
+Один человек заводит вопрос с вариантами и кидает ссылку в чат. Каждый за полминуты расставляет
+варианты по вкусу — без регистрации, без приложения, прямо в браузере телефона. Алгоритм считает
+компромисс и показывает не только победителя, но и почему победил именно он.
+
+## Зачем
+
+Выбор ресторана или фильма в общем чате обычно выигрывает не лучший вариант, а самый настойчивый
+участник. Обычный опрос «за что ты?» проблему не решает: он показывает только первые места и молчит
+о том, что для половины чата победитель — худший вариант из возможных.
+
+Ranko спрашивает не «что нравится», а «в каком порядке» — и находит то, что устраивает всех.
+
+## Как выглядит
+
+| Создать | Проголосовать | Результаты |
+|---|---|---|
+| ![Форма создания решения](docs/screenshots/create.png) | ![Ранжирование вариантов](docs/screenshots/vote.png) | ![Победитель и расклад по очкам](docs/screenshots/results.png) |
+
+Скриншоты снимаются с живого приложения — `npm run screenshots` проходит путь человека
+(создать → проголосовать → результаты) и переснимает все три.
+
+## Как считается компромисс
+
+Метод Борда — его можно объяснить участнику одной строкой:
+
+> Вариант получает тем больше очков, чем выше он в твоём списке. Побеждает тот, у кого сумма больше.
+
+Точнее: при N вариантах вариант на позиции k получает `N − k` очков — верхний даёт `N − 1`,
+нижний `0`. Побеждает максимум суммы. Ничьи разводим по порядку: больше первых мест → меньше
+последних мест → детерминированный выбор с сидом от slug решения (чтобы победитель не «прыгал»
+при каждом обновлении страницы).
+
+Поэтому вариант, которого никто не назвал первым, но никто и не задвинул в конец, обходит любимца
+меньшинства — это и есть компромисс. Алгоритм живёт в [src/lib/borda.ts](src/lib/borda.ts) чистой
+функцией и покрыт тестами, включая тай-брейки и случаи с 0 и 1 участником.
+
+## Стек
+
+| Слой | Выбор |
+|---|---|
+| Фреймворк | Next.js (App Router) + TypeScript strict |
+| UI | Tailwind CSS + shadcn/ui, mobile-first |
+| Drag & drop | dnd-kit + кнопки ↑/↓ как равноценный fallback |
+| БД | Postgres (Neon) + Drizzle ORM, миграции drizzle-kit |
+| Драйвер БД | Neon HTTP — обычный TCP-`pg` на Vercel исчерпал бы лимит соединений |
+| Валидация | zod на каждой границе API |
+| Данные на клиенте | SWR с поллингом раз в 4 секунды |
+| Тесты | Vitest (юниты и ручки на PGlite) + Playwright (сквозной сценарий) |
+| Деплой | Vercel |
+
+## Приватность
+
+Аккаунтов нет вообще. Личность участника — токен в localStorage и httpOnly-cookie, право админа —
+знание admin-токена из ссылки. Токены не логируются и никогда не отдаются в GET-ответах.
+Аналитики и сторонних счётчиков нет — поэтому нет и баннера про cookies: согласовывать нечего.
+
+## Локальный запуск
+
+Нужен Node 20+ и база Postgres (проще всего — бесплатный проект в [Neon](https://neon.tech)).
 
 ```bash
+npm install
+cp .env.example .env.local   # и подставить DATABASE_URL
+npx drizzle-kit migrate      # накатить схему
+npm run db:seed              # необязательно: демо-решение на /d/demo-fri
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открыть http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Переменные окружения
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Все описаны с комментариями в [.env.example](.env.example). Обязательная ровно одна:
 
-## Learn More
+| Переменная | Обязательна | Зачем |
+|---|---|---|
+| `DATABASE_URL` | да | Postgres (Neon), pooled-строка |
+| `NEXT_PUBLIC_SITE_URL` | в проде | Абсолютный адрес для ссылок на OG-превью |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | в проде | Rate limit на создание, общий для всех инстансов; без них лимит живёт в памяти процесса и на Vercel дырявый |
+| `NEXT_PUBLIC_FEEDBACK_EMAIL` | нет | Почта для ссылки «Написать автору». Пусто — ссылки нет |
 
-To learn more about Next.js, take a look at the following resources:
+## Команды
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev          # dev-сервер
+npm run lint         # eslint
+npm run typecheck    # tsc --noEmit
+npm run test         # vitest: юниты + ручки на PGlite в памяти
+npm run test:e2e     # playwright: сквозной сценарий (нужен dev-сервер и живая база)
+npm run metrics      # метрики продукта по базе (см. ниже)
+npm run screenshots  # переснять картинки для README (нужен dev-сервер)
+npm run db:generate  # сгенерировать миграцию по изменённой схеме
+npm run db:migrate   # накатить миграции
+npm run db:seed      # демо-решение
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Деплой
 
-## Deploy on Vercel
+Vercel + Neon, ноль ops. Порядок:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Завести проект в Neon, скопировать **pooled**-строку подключения.
+2. Импортировать репозиторий в Vercel — Next.js определится сам, настраивать сборку не нужно.
+3. Прописать переменные окружения в Vercel (см. таблицу выше). `NEXT_PUBLIC_SITE_URL` — боевой
+   адрес: без него превью-деплои будут подставлять в OG-разметку свои временные адреса.
+4. Накатить схему на прод-базу: `DATABASE_URL=<прод> npx drizzle-kit migrate`.
+5. Проверить живьём: создать решение, кинуть ссылку в мессенджер (развернётся ли OG-превью),
+   проголосовать с телефона.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Метрики
+
+Продукт считается работающим, если решения не только создают, но и доводят до конца.
+`npm run metrics` отвечает на три вопроса прямо по базе — сколько решений создано, в скольких
+набралось три и больше проголосовавших, сколько дошло до «закрыто». Это и есть метрики успеха
+из PLAN.md: они про судьбу конкретного решения, и внешний счётчик на них не отвечает.
+
+Стороннюю аналитику намеренно не подключали: за картинку трафика пришлось бы платить или
+поднимать свой инстанс, а вопрос «работает ли продукт» закрывается запросом к базе.
+
+## Что дальше
+
+Сознательно не вошло в v0.1: опросы по датам, право вето, предложение вариантов участниками,
+делёжка расходов, Telegram-бот, аккаунты и история решений. Полный список и рамки фаз —
+в [PLAN.md](PLAN.md).
