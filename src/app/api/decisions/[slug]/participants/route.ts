@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { participants } from '@/lib/db/schema';
 import { apiError, json, readJson } from '@/lib/api';
 import { getDecisionBySlug } from '@/lib/decisions';
+import { buildParticipantCookie } from '@/lib/participant-cookie';
 import { joinSchema } from '@/lib/schemas';
 
 type Params = { params: Promise<{ slug: string }> };
@@ -24,5 +25,8 @@ export async function POST(req: Request, { params }: Params): Promise<Response> 
     .returning({ id: participants.id });
 
   // participantToken отдаём только владельцу здесь; в GET-ответах он не появляется (PLAN.md §4).
-  return json({ participantId: participant.id, participantToken: token }, 201);
+  // Тем же ответом кладём его httpOnly-cookie дублем: localStorage вычистят — узнаем по cookie.
+  return json({ participantId: participant.id, participantToken: token }, 201, {
+    'Set-Cookie': buildParticipantCookie(slug, token),
+  });
 }

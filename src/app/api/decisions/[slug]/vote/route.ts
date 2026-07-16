@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { options, participants, rankings } from '@/lib/db/schema';
 import { apiError, json, readJson } from '@/lib/api';
 import { getDecisionBySlug } from '@/lib/decisions';
+import { readParticipantCookie } from '@/lib/participant-cookie';
 import { voteSchema } from '@/lib/schemas';
 
 type Params = { params: Promise<{ slug: string }> };
@@ -12,11 +13,17 @@ export async function PUT(req: Request, { params }: Params): Promise<Response> {
   const { slug } = await params;
   const parsed = await readJson(req, voteSchema);
   if (!parsed.ok) return parsed.response;
-  const { participantToken, order } = parsed.data;
+  const { order } = parsed.data;
 
   const decision = await getDecisionBySlug(slug);
   if (!decision) return apiError('Решение не найдено', 404);
   if (decision.status === 'closed') return apiError('Голосование закрыто', 403);
+
+  // Личность: токен из тела (обычный путь — он есть в localStorage), иначе httpOnly-cookie дублем
+  // (PLAN.md §4) — единственный источник, когда localStorage вычистили. Cookie привязана к slug,
+  // поэтому чужое решение ею не открыть.
+  const participantToken = parsed.data.participantToken ?? readParticipantCookie(req, slug);
+  if (!participantToken) return apiError('Отсутствует токен участника', 403);
 
   const [participant] = await db
     .select({ id: participants.id })

@@ -29,8 +29,10 @@ export const joinSchema = z.object({
 // PUT /api/decisions/{slug}/vote — полная перестановка вариантов.
 // order — это optionId[]; полнота набора (перестановка ровно всех вариантов решения) проверяется
 // в хендлере против БД (иначе 422): здесь валидируем лишь форму.
+// participantToken необязателен: личность может приехать httpOnly-cookie дублем (PLAN.md §4), а её
+// клиент прочитать не может по определению. Хендлер требует хотя бы один источник — тело или cookie.
 export const voteSchema = z.object({
-  participantToken: z.string().min(1, 'Отсутствует токен участника'),
+  participantToken: z.string().min(1, 'Отсутствует токен участника').optional(),
   order: z.array(z.uuid('Некорректный идентификатор варианта')).min(1, 'Пустой порядок вариантов'),
 });
 

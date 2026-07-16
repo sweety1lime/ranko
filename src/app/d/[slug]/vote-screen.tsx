@@ -4,6 +4,7 @@
 // по participantToken из localStorage и даём изменить порядок, пока голосование открыто.
 import { useState } from 'react';
 import type { DecisionView } from '@/lib/decisions';
+import type { ParticipantState } from '@/lib/participants';
 import {
   clearParticipant,
   loadParticipant,
@@ -29,17 +30,30 @@ function initialItems(decision: DecisionView, savedOrder: string[]): RankItem[] 
   return [...restored, ...rest].map(({ id, label }) => ({ id, label }));
 }
 
-export function VoteScreen({ decision }: { decision: DecisionView }) {
+// knownParticipant — участник, узнанный сервером по httpOnly-cookie (PLAN.md §4). Это второй,
+// независимый от localStorage источник личности: он работает, даже когда localStorage пуст.
+export function VoteScreen({
+  decision,
+  knownParticipant,
+}: {
+  decision: DecisionView;
+  knownParticipant: ParticipantState | null;
+}) {
   // Читаем localStorage лениво в инициализаторе: на сервере его нет, а useEffect дал бы моргание
   // экрана имени вернувшемуся участнику.
   const [participant, setParticipant] = useState<StoredParticipant | null>(() =>
     loadParticipant(decision.slug),
   );
-  const [name, setName] = useState(participant?.name ?? '');
+  // Узнал ли нас сервер по cookie. Сбрасываем, если сервер перестал признавать личность (403).
+  const [knownByCookie, setKnownByCookie] = useState(knownParticipant !== null);
+  const [name, setName] = useState(participant?.name ?? knownParticipant?.name ?? '');
   const [items, setItems] = useState<RankItem[]>(() =>
-    initialItems(decision, participant?.order ?? []),
+    // Порядок с сервера авторитетнее localStorage: он и есть то, что реально записано в БД.
+    initialItems(decision, knownParticipant?.order ?? participant?.order ?? []),
   );
-  const [stage, setStage] = useState<Stage>(() => (participant ? 'rank' : 'name'));
+  const [stage, setStage] = useState<Stage>(() =>
+    participant || knownParticipant ? 'rank' : 'name',
+  );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -60,10 +74,12 @@ export function VoteScreen({ decision }: { decision: DecisionView }) {
   }
 
   // Токен не признан сервером: участника удалил админ. Забываем запись и просим имя заново,
-  // вместо тупика с необъяснимой ошибкой.
+  // вместо тупика с необъяснимой ошибкой. Cookie отсюда не стереть (она httpOnly), но и не надо:
+  // сервер её уже не признаёт, а при следующей загрузке страницы просто не узнает участника.
   function forgetParticipant() {
     clearParticipant(decision.slug);
     setParticipant(null);
+    setKnownByCookie(false);
     setName('');
     setStage('name');
     setNotice('Организатор удалил вас из голосования. Можно присоединиться заново.');
@@ -86,10 +102,11 @@ export function VoteScreen({ decision }: { decision: DecisionView }) {
     setSubmitting(true);
 
     try {
-      // Участника создаём один раз — при первой отправке. Если шаг упадёт ниже, на PUT,
-      // токен уже сохранён и повтор отправки починит (как в vote/route.ts).
+      // Участника создаём один раз — при первой отправке. Если нас уже знают (localStorage или
+      // cookie), присоединяться повторно нельзя: получим второго «призрака» с тем же именем.
+      // Если шаг упадёт ниже, на PUT, токен уже сохранён и повтор отправки починит (как в vote/route.ts).
       let current = participant;
-      if (!current) {
+      if (!current && !knownByCookie) {
         const response = await fetch(`/api/decisions/${decision.slug}/participants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -103,6 +120,7 @@ export function VoteScreen({ decision }: { decision: DecisionView }) {
 
         current = { token: data.participantToken, name: name.trim(), order: [] };
         setParticipant(current);
+        setKnownByCookie(true); // тем же ответом пришла и cookie
         saveParticipant(decision.slug, current);
       }
 
@@ -110,12 +128,14 @@ export function VoteScreen({ decision }: { decision: DecisionView }) {
       const response = await fetch(`/api/decisions/${decision.slug}/vote`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantToken: current.token, order }),
+        // Токена может не быть вовсе: localStorage вычистили, а cookie прочитать нельзя (httpOnly).
+        // Тогда личность возьмётся из неё же на сервере — cookie уедет с запросом сама.
+        body: JSON.stringify(current ? { participantToken: current.token, order } : { order }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        if (response.status === 403 && participant) {
+        if (response.status === 403 && (participant || knownByCookie)) {
           forgetParticipant();
           return;
         }
@@ -123,7 +143,7 @@ export function VoteScreen({ decision }: { decision: DecisionView }) {
         return;
       }
 
-      saveParticipant(decision.slug, { ...current, order });
+      if (current) saveParticipant(decision.slug, { ...current, order });
       setStage('done');
     } catch {
       setError('Сеть недоступна. Проверьте соединение и попробуйте ещё раз.');

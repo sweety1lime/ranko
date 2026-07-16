@@ -35,6 +35,15 @@ function jsonReq(body?: unknown, method = 'POST'): Request {
   });
 }
 
+// Запрос с заголовком Cookie — для проверки httpOnly-дубля participantToken.
+function jsonReqWithCookie(body: unknown, cookie: string, method = 'PUT'): Request {
+  return new Request('http://test.local/api', {
+    method,
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify(body),
+  });
+}
+
 const ctx = <T extends Record<string, string>>(params: T) => ({ params: Promise.resolve(params) });
 
 type Created = { slug: string; adminToken: string };
@@ -180,6 +189,74 @@ describe('голосование и присоединение — 403/422', () 
   it('голосование по неизвестному slug → 404', async () => {
     const res = await vote(jsonReq({ participantToken: 'x', order: [crypto.randomUUID()] }), ctx({ slug: 'nope' }));
     expect(res.status).toBe(404);
+  });
+});
+
+// --- httpOnly-cookie дублем к participantToken (PLAN.md §4) --------------------------------------
+
+describe('httpOnly-cookie дублем к participantToken (PLAN.md §4)', () => {
+  it('присоединение кладёт токен в httpOnly-cookie, привязанную к решению', async () => {
+    const { slug } = await makeDecision();
+    const res = await joinDecision(jsonReq({ name: 'Аня' }), ctx({ slug }));
+    const { participantToken } = await res.json();
+
+    const cookie = res.headers.get('set-cookie');
+    expect(cookie).toContain(`ranko_p_${slug}=${participantToken}`);
+    expect(cookie).toContain('HttpOnly');
+    // Lax — не косметика: cookie авторизует PUT /vote, без неё это был бы CSRF.
+    expect(cookie).toContain('SameSite=Lax');
+    expect(cookie).toContain('Path=/');
+  });
+
+  it('голос принимается по одной только cookie, когда токена в теле нет', async () => {
+    const { slug } = await makeDecision();
+    const order = await optionIdsOf(slug);
+    const joinRes = await joinDecision(jsonReq({ name: 'Аня' }), ctx({ slug }));
+    const cookie = joinRes.headers.get('set-cookie')!.split(';')[0];
+
+    // Ровно сценарий вычищенного localStorage: клиент токена не знает и прислать его не может.
+    const res = await vote(jsonReqWithCookie({ order }, cookie), ctx({ slug }));
+    expect(res.status).toBe(200);
+
+    const results = await (await getResults(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
+    expect(results.votedNames).toEqual(['Аня']);
+    expect(results.participantsCount).toBe(1);
+  });
+
+  it('cookie от другого решения не даёт голосовать', async () => {
+    const a = await makeDecision({ title: 'Решение А' });
+    const b = await makeDecision({ title: 'Решение Б' });
+    const joinRes = await joinDecision(jsonReq({ name: 'Аня' }), ctx({ slug: a.slug }));
+    const cookieForA = joinRes.headers.get('set-cookie')!.split(';')[0];
+
+    const orderB = await optionIdsOf(b.slug);
+    const res = await vote(jsonReqWithCookie({ order: orderB }, cookieForA), ctx({ slug: b.slug }));
+    expect(res.status).toBe(403);
+  });
+
+  it('без токена в теле и без cookie → 403', async () => {
+    const { slug } = await makeDecision();
+    const order = await optionIdsOf(slug);
+    const res = await vote(jsonReq({ order }, 'PUT'), ctx({ slug }));
+    expect(res.status).toBe(403);
+  });
+
+  it('токен из тела важнее cookie: чужая cookie не подменяет личность', async () => {
+    const { slug } = await makeDecision();
+    const order = await optionIdsOf(slug);
+    const anya = await join(slug, 'Аня');
+    const borisJoin = await joinDecision(jsonReq({ name: 'Борис' }), ctx({ slug }));
+    const borisCookie = borisJoin.headers.get('set-cookie')!.split(';')[0];
+
+    // Тело — Аня, cookie — Борис: голос должен уйти Ане.
+    const res = await vote(
+      jsonReqWithCookie({ participantToken: anya.token, order }, borisCookie),
+      ctx({ slug }),
+    );
+    expect(res.status).toBe(200);
+
+    const results = await (await getResults(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
+    expect(results.votedNames).toEqual(['Аня']);
   });
 });
 

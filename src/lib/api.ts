@@ -4,9 +4,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { z } from 'zod';
 
-// Успешный JSON-ответ.
-export function json(data: unknown, status = 200): Response {
-  return Response.json(data, { status });
+// Успешный JSON-ответ. headers — для нечастых случаев вроде Set-Cookie.
+export function json(data: unknown, status = 200, headers?: HeadersInit): Response {
+  return Response.json(data, { status, headers });
 }
 
 // Ошибка в едином формате { error } с честным HTTP-статусом (PLAN.md §6).
