@@ -23,6 +23,9 @@ export const decisions = pgTable('decisions', {
   adminToken: varchar('admin_token', { length: 24 }).notNull(),
   title: varchar('title', { length: 120 }).notNull(),
   description: varchar('description', { length: 500 }),
+  // Город решения — контекст для мест, заданных адресом текстом: по нему строим поиск на карте.
+  // Местам, заданным ссылкой, город не нужен — точка в ссылке уже есть.
+  city: varchar('city', { length: 80 }),
   status: decisionStatus('status').notNull().default('open'),
   deadline: timestamp('deadline', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -37,6 +40,10 @@ export const options = pgTable(
       .notNull()
       .references(() => decisions.id, { onDelete: 'cascade' }),
     label: varchar('label', { length: 80 }).notNull(),
+    // Место варианта: либо ссылка на Яндекс.Карты, либо адрес текстом — одно поле на оба случая
+    // (PLAN.md §8, Фаза 7). Что именно лежит, разбирает src/lib/place.ts при рендере.
+    // 200 символов: короткая ссылка из «Поделиться» — около 35, адрес текстом влезает с запасом.
+    place: varchar('place', { length: 200 }),
     position: integer('position').notNull(),
   },
   (t) => [index('options_decision_id_idx').on(t.decisionId)],

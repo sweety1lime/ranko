@@ -8,6 +8,13 @@
       "when": 1784154854409,
       "tag": "0000_previous_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784233039023,
+      "tag": "0001_public_viper",
+      "breakpoints": true
     }
   ]
 }

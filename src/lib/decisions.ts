@@ -27,10 +27,12 @@ export type DecisionView = {
   slug: string;
   title: string;
   description: string | null;
+  // Город и место — публичные данные: их для того и заводили, чтобы участник увидел, куда идти.
+  city: string | null;
   status: Decision['status'];
   deadline: Date | null;
   createdAt: Date;
-  options: { id: string; label: string; position: number }[];
+  options: { id: string; label: string; place: string | null; position: number }[];
   participants: { id: string; name: string }[];
 };
 
@@ -43,7 +45,12 @@ export async function getDecisionView(slug: string): Promise<DecisionView | null
 
   const [opts, parts] = await Promise.all([
     db
-      .select({ id: options.id, label: options.label, position: options.position })
+      .select({
+        id: options.id,
+        label: options.label,
+        place: options.place,
+        position: options.position,
+      })
       .from(options)
       .where(eq(options.decisionId, decision.id))
       .orderBy(asc(options.position)),
@@ -58,6 +65,7 @@ export async function getDecisionView(slug: string): Promise<DecisionView | null
     slug: decision.slug,
     title: decision.title,
     description: decision.description,
+    city: decision.city,
     status: decision.status,
     deadline: decision.deadline,
     createdAt: decision.createdAt,

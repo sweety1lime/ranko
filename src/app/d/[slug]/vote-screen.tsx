@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DecisionView } from '@/lib/decisions';
 import type { ParticipantState } from '@/lib/participants';
+import { placeLinkText, placeMapHref } from '@/lib/place';
 import {
   clearParticipant,
   loadParticipant,
@@ -28,7 +29,14 @@ function initialItems(decision: DecisionView, savedOrder: string[]): RankItem[] 
   const restoredIds = new Set(restored.map((option) => option.id));
   const rest = decision.options.filter((option) => !restoredIds.has(option.id));
 
-  return [...restored, ...rest].map(({ id, label }) => ({ id, label }));
+  return [...restored, ...rest].map(({ id, label, place }) => ({
+    id,
+    label,
+    // Ссылку строим здесь, а не в RankList: правила доверия и город решения — забота place.ts.
+    // Недоверенная ссылка даёт null и просто не показывается (см. src/lib/place.ts).
+    mapHref: placeMapHref(place, decision.city),
+    placeText: place ? placeLinkText(place) : null,
+  }));
 }
 
 // Закрыто ли голосование прямо сейчас. Нужна, чтобы развести две причины 403 на отправке голоса:

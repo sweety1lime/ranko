@@ -2,9 +2,11 @@
 
 // Живой расклад решения (PLAN.md §7): победитель крупно, «почему», таблица очков и кто уже
 // проголосовал. Поллинг раз в 4 секунды — чтобы два окна видели голоса друг друга сами.
+import { ExternalLink } from 'lucide-react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { initials } from '@/lib/initials';
+import { placeLinkText, placeMapHref } from '@/lib/place';
 import { plural } from '@/lib/plural';
 import type { ResultsResponse } from '@/lib/results';
 import type { TallyEntry } from '@/lib/borda';
@@ -42,6 +44,7 @@ export function ResultsView({ slug, fallbackData }: { slug: string; fallbackData
   const closed = results.status === 'closed';
   const winner = results.tally.find((entry) => entry.optionId === results.winnerId) ?? null;
   const rows = [...results.tally].sort(compareRows(results.winnerId));
+  const winnerMapHref = placeMapHref(winner?.place ?? null, results.city);
 
   return (
     <div className="flex flex-col gap-8">
@@ -59,6 +62,20 @@ export function ResultsView({ slug, fallbackData }: { slug: string; fallbackData
           </p>
           <h2 className="text-3xl font-semibold tracking-tight text-balance">{winner.label}</h2>
           <p className="text-muted-foreground text-sm">{explainWinner(winner)}</p>
+          {/* Ссылка только у победителя: результат — это ответ «куда идём», а двадцать ссылок
+              в таблице очков только зашумили бы узкий экран. */}
+          {winnerMapHref && winner.place && (
+            <a
+              href={winnerMapHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${placeLinkText(winner.place)} — открыть на карте`}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring mt-1 inline-flex w-fit items-center gap-1 rounded-sm text-sm underline underline-offset-2 outline-none focus-visible:ring-3"
+            >
+              <span className="break-all">{placeLinkText(winner.place)}</span>
+              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+            </a>
+          )}
         </section>
       ) : (
         <section className="border-border rounded-lg border border-dashed p-4">

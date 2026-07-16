@@ -4,7 +4,7 @@
 // валидация живёт там (zod, createDecisionSchema), здесь дублируем лишь минимум для мгновенной
 // обратной связи, а источник истины по ошибке — { error } из ответа.
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { MapPin, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,11 +15,17 @@ const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 20;
 
 type Created = { slug: string; adminToken: string };
+// placeOpen — раскрыто ли поле места. Живёт в родителе, а не в OptionField: только так форма
+// знает, какое поле раскрыто первым, и показывает подсказку один раз, а не под каждым.
+type OptionDraft = { label: string; place: string; placeOpen: boolean };
+
+const emptyOption = (): OptionDraft => ({ label: '', place: '', placeOpen: false });
 
 export function CreateForm() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [options, setOptions] = useState(['', '']);
+  const [city, setCity] = useState('');
+  const [options, setOptions] = useState<OptionDraft[]>([emptyOption(), emptyOption()]);
   const [deadline, setDeadline] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -27,8 +33,8 @@ export function CreateForm() {
 
   if (created) return <CreatedLinks created={created} />;
 
-  function setOptionAt(index: number, value: string) {
-    setOptions((prev) => prev.map((option, i) => (i === index ? value : option)));
+  function updateOptionAt(index: number, patch: Partial<OptionDraft>) {
+    setOptions((prev) => prev.map((option, i) => (i === index ? { ...option, ...patch } : option)));
   }
 
   function removeOptionAt(index: number) {
@@ -39,7 +45,9 @@ export function CreateForm() {
     event.preventDefault();
     setError(null);
 
-    const filled = options.map((option) => option.trim()).filter(Boolean);
+    const filled = options
+      .map((option) => ({ label: option.label.trim(), place: option.place.trim() }))
+      .filter((option) => option.label);
     if (filled.length < MIN_OPTIONS) {
       setError('Нужно минимум 2 варианта');
       return;
@@ -53,7 +61,8 @@ export function CreateForm() {
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || undefined,
-          options: filled,
+          city: city.trim() || undefined,
+          options: filled.map(({ label, place }) => ({ label, place: place || undefined })),
           // datetime-local даёт локальное время без зоны, а схема ждёт ISO со смещением.
           deadline: deadline ? new Date(deadline).toISOString() : undefined,
         }),
@@ -99,32 +108,35 @@ export function CreateForm() {
         />
       </div>
 
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="city">Город (необязательно)</Label>
+        <Input
+          id="city"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="Москва"
+          maxLength={80}
+          className="h-11"
+        />
+        <p className="text-muted-foreground text-xs">
+          Нужен, только если место варианта задано адресом: по нему уточним поиск на карте.
+        </p>
+      </div>
+
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm leading-none font-medium">Варианты</legend>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
           {options.map((option, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <Input
-                value={option}
-                onChange={(e) => setOptionAt(index, e.target.value)}
-                placeholder={`Вариант ${index + 1}`}
-                maxLength={80}
-                aria-label={`Вариант ${index + 1}`}
-                className="h-11"
-              />
-              {options.length > MIN_OPTIONS && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeOptionAt(index)}
-                  aria-label={`Удалить вариант ${index + 1}`}
-                  className="size-11 shrink-0"
-                >
-                  <X />
-                </Button>
-              )}
-            </div>
+            <OptionField
+              key={index}
+              option={option}
+              index={index}
+              removable={options.length > MIN_OPTIONS}
+              // Как заполнять место, объясняем один раз — у первого раскрытого поля.
+              showHint={index === options.findIndex((o) => o.placeOpen)}
+              onChange={(patch) => updateOptionAt(index, patch)}
+              onRemove={() => removeOptionAt(index)}
+            />
           ))}
         </div>
 
@@ -132,8 +144,8 @@ export function CreateForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setOptions((prev) => [...prev, ''])}
-            className="h-11 self-start"
+            onClick={() => setOptions((prev) => [...prev, emptyOption()])}
+            className="mt-2 h-11 self-start"
           >
             <Plus />
             Вариант
@@ -162,6 +174,89 @@ export function CreateForm() {
         {submitting ? 'Создаём…' : 'Создать решение'}
       </Button>
     </form>
+  );
+}
+
+// Вариант с опциональным местом (PLAN.md §8, Фаза 7). Поле места прячем за «+ место»: указывают
+// его редко и не для всех вариантов, а двадцать всегда открытых пар инпутов на телефоне
+// превращают форму в простыню.
+function OptionField({
+  option,
+  index,
+  removable,
+  showHint,
+  onChange,
+  onRemove,
+}: {
+  option: OptionDraft;
+  index: number;
+  removable: boolean;
+  showHint: boolean;
+  onChange: (patch: Partial<OptionDraft>) => void;
+  onRemove: () => void;
+}) {
+  const placeId = `option-place-${index}`;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Input
+          value={option.label}
+          onChange={(e) => onChange({ label: e.target.value })}
+          placeholder={`Вариант ${index + 1}`}
+          maxLength={80}
+          aria-label={`Вариант ${index + 1}`}
+          className="h-11"
+        />
+        {removable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            aria-label={`Удалить вариант ${index + 1}`}
+            className="size-11 shrink-0"
+          >
+            <X />
+          </Button>
+        )}
+      </div>
+
+      {option.placeOpen ? (
+        <div className="flex flex-col gap-1.5 pl-3">
+          <Label htmlFor={placeId} className="text-muted-foreground text-xs">
+            Место для варианта {index + 1}
+          </Label>
+          <Input
+            id={placeId}
+            value={option.place}
+            onChange={(e) => onChange({ place: e.target.value })}
+            placeholder="Ссылка из «Поделиться» или адрес"
+            maxLength={200}
+            className="h-11"
+          />
+          {showHint && (
+            <p className="text-muted-foreground text-xs">
+              Откройте место в Яндекс.Картах, нажмите «Поделиться» и вставьте ссылку — участник
+              попадёт точно на точку. Можно просто адресом.
+            </p>
+          )}
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => onChange({ placeOpen: true })}
+          // Номер варианта — в имени кнопки: на экране их до двадцати, и без него «место»
+          // не различить ни скринридеру, ни тесту.
+          aria-label={`Добавить место для варианта ${index + 1}`}
+          className="text-muted-foreground h-9 self-start px-3 text-xs"
+        >
+          <MapPin className="size-3" />
+          место
+        </Button>
+      )}
+    </div>
   );
 }
 

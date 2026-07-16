@@ -15,7 +15,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const parsed = await readJson(req, createDecisionSchema);
   if (!parsed.ok) return parsed.response;
-  const { title, description, options: labels, deadline } = parsed.data;
+  const { title, description, city, options: items, deadline } = parsed.data;
 
   const slug = await generateUniqueSlug();
   const adminToken = nanoid(24);
@@ -27,13 +27,19 @@ export async function POST(req: Request): Promise<Response> {
       adminToken,
       title,
       description: description ? description : null,
+      city: city ? city : null,
       deadline: deadline ? new Date(deadline) : null,
     })
     .returning({ id: decisions.id });
 
-  await db
-    .insert(options)
-    .values(labels.map((label, position) => ({ decisionId: decision.id, label, position })));
+  await db.insert(options).values(
+    items.map((item, position) => ({
+      decisionId: decision.id,
+      label: item.label,
+      place: item.place ? item.place : null,
+      position,
+    })),
+  );
 
   // adminToken отдаём один раз создателю — дальше он живёт в админ-ссылке (PLAN.md §2).
   return json({ slug, adminToken }, 201);

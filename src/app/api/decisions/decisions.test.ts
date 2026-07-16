@@ -55,9 +55,16 @@ const ctx = <T extends Record<string, string>>(params: T) => ({ params: Promise.
 
 type Created = { slug: string; adminToken: string };
 
+// Вариант в теле POST — объект { label, place? } (PLAN.md §6, Фаза 7).
+const opt = (label: string, place?: string) => (place === undefined ? { label } : { label, place });
+
 async function makeDecision(overrides: Record<string, unknown> = {}): Promise<Created> {
   const res = await createDecision(
-    jsonReq({ title: 'Куда идём?', options: ['Пицца', 'Бар', 'Кино'], ...overrides }),
+    jsonReq({
+      title: 'Куда идём?',
+      options: [opt('Пицца'), opt('Бар'), opt('Кино')],
+      ...overrides,
+    }),
   );
   expect(res.status).toBe(201);
   return res.json();
@@ -134,19 +141,21 @@ describe('полный сценарий: создать → присоедини
 
 describe('POST /api/decisions — валидация', () => {
   it('пустой заголовок → 400', async () => {
-    const res = await createDecision(jsonReq({ title: '   ', options: ['A', 'B'] }));
+    const res = await createDecision(jsonReq({ title: '   ', options: [opt('A'), opt('B')] }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBeTruthy();
   });
 
   it('меньше двух вариантов → 400', async () => {
-    const res = await createDecision(jsonReq({ title: 'Вопрос', options: ['Единственный'] }));
+    const res = await createDecision(jsonReq({ title: 'Вопрос', options: [opt('Единственный')] }));
     expect(res.status).toBe(400);
   });
 
   it('дедлайн в прошлом → 400', async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
-    const res = await createDecision(jsonReq({ title: 'Вопрос', options: ['A', 'B'], deadline: past }));
+    const res = await createDecision(
+      jsonReq({ title: 'Вопрос', options: [opt('A'), opt('B')], deadline: past }),
+    );
     expect(res.status).toBe(400);
   });
 
@@ -167,6 +176,73 @@ describe('POST /api/decisions — валидация', () => {
   });
 });
 
+// --- Места на карте (PLAN.md §8, Фаза 7) ---------------------------------------------------------
+
+describe('POST /api/decisions — места', () => {
+  const YA_LINK = 'https://yandex.ru/maps/-/CDeaZL0X';
+
+  it('город и места сохраняются и приходят в GET', async () => {
+    const { slug } = await makeDecision({
+      city: 'Москва',
+      options: [opt('Кафе Пушкин', YA_LINK), opt('Бар Ровесник', 'Большая Дмитровка 32'), opt('Кино')],
+    });
+
+    const read = await (await getDecision(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
+    expect(read.city).toBe('Москва');
+    expect(read.options.map((o: { place: string | null }) => o.place)).toEqual([
+      YA_LINK,
+      'Большая Дмитровка 32',
+      // Вариант без места остаётся ровно таким, каким был до Фазы 7.
+      null,
+    ]);
+  });
+
+  it('место доезжает до результатов — иначе у победителя не будет ссылки', async () => {
+    const { slug } = await makeDecision({
+      city: 'Москва',
+      options: [opt('Кафе Пушкин', YA_LINK), opt('Кино')],
+    });
+    const [cafe] = await optionIdsOf(slug);
+    const { token } = await join(slug, 'Аня');
+    await vote(jsonReq({ participantToken: token, order: await optionIdsOf(slug) }), ctx({ slug }));
+
+    const results = await (await getResults(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
+    expect(results.city).toBe('Москва');
+    expect(results.winnerId).toBe(cafe);
+    expect(results.tally.find((t: { optionId: string }) => t.optionId === cafe).place).toBe(YA_LINK);
+  });
+
+  it('решение без города и мест работает как раньше', async () => {
+    const { slug } = await makeDecision();
+    const read = await (await getDecision(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
+    expect(read.city).toBeNull();
+    expect(read.options.every((o: { place: string | null }) => o.place === null)).toBe(true);
+  });
+
+  // Негодную ссылку ловим при создании: иначе о ней узнает участник — по мёртвой кнопке «На карте».
+  it('ссылка не на Яндекс.Карты → 400', async () => {
+    const res = await createDecision(
+      jsonReq({ title: 'Вопрос', options: [opt('A', 'https://example.com/x'), opt('B')] }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBeTruthy();
+  });
+
+  it('javascript: в месте → 400, а не адрес для поиска', async () => {
+    const res = await createDecision(
+      jsonReq({ title: 'Вопрос', options: [opt('A', 'javascript:alert(1)'), opt('B')] }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('место длиннее 200 символов → 400', async () => {
+    const res = await createDecision(
+      jsonReq({ title: 'Вопрос', options: [opt('A', 'у'.repeat(201)), opt('B')] }),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 // --- Создание: rate limit ------------------------------------------------------------------------
 
 describe('POST /api/decisions — rate limit', () => {
@@ -175,7 +251,7 @@ describe('POST /api/decisions — rate limit', () => {
       Response.json({ error: 'Слишком много' }, { status: 429, headers: { 'Retry-After': '42' } }),
     );
 
-    const res = await createDecision(jsonReq({ title: 'Вопрос', options: ['A', 'B'] }));
+    const res = await createDecision(jsonReq({ title: 'Вопрос', options: [opt('A'), opt('B')] }));
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toBe('42');
 

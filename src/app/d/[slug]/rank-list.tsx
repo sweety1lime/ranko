@@ -20,10 +20,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export type RankItem = { id: string; label: string };
+// mapHref и placeText считает вызывающий (vote-screen через src/lib/place.ts): здесь только
+// рендер, чтобы список не знал ни про город решения, ни про правила доверия ссылкам.
+export type RankItem = { id: string; label: string; mapHref: string | null; placeText: string | null };
 
 export function RankList({
   items,
@@ -118,7 +120,24 @@ function SortableRow({
       <span className="text-muted-foreground w-5 shrink-0 text-center text-sm tabular-nums">
         {index + 1}
       </span>
-      <span className="flex-1 py-2 text-sm break-words">{item.label}</span>
+
+      <div className="flex flex-1 flex-col gap-0.5 py-2">
+        <span className="text-sm break-words">{item.label}</span>
+        {item.mapHref && item.placeText && (
+          // Драгу не мешает: тащат только за грип, а TouchSensor держит задержку 200 мс,
+          // так что тап по ссылке не превращается в перетаскивание.
+          <a
+            href={item.mapHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${item.placeText} — открыть на карте`}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex w-fit items-center gap-1 rounded-sm text-xs underline underline-offset-2 outline-none focus-visible:ring-3"
+          >
+            <span className="break-all">{item.placeText}</span>
+            <ExternalLink className="size-3 shrink-0" aria-hidden />
+          </a>
+        )}
+      </div>
 
       <div className="flex shrink-0 items-center gap-1">
         <Button
