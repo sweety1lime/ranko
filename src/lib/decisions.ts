@@ -1,9 +1,9 @@
 // DB-хелперы вокруг таблицы decisions: ленивое закрытие по дедлайну и генерация уникального slug.
 // Держим их отдельно от route handlers, чтобы хендлеры оставались тонкими.
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
-import { decisions, type Decision } from '@/lib/db/schema';
+import { decisions, options, participants, type Decision } from '@/lib/db/schema';
 
 // Грузит решение по slug и лениво закрывает его, если прошёл дедлайн (PLAN.md §5): любой read/write
 // при now > deadline сначала переводит статус в 'closed'. Возвращает решение (уже с актуальным
@@ -18,6 +18,52 @@ export async function getDecisionBySlug(slug: string): Promise<Decision | null> 
   }
 
   return decision;
+}
+
+// Публичное представление решения: то, что можно показать любому по ссылке. Ровно эту форму отдаёт
+// GET /api/decisions/{slug} и на ней же рендерится страница голосования — оба читают через
+// getDecisionView, поэтому расходиться им негде.
+export type DecisionView = {
+  slug: string;
+  title: string;
+  description: string | null;
+  status: Decision['status'];
+  deadline: Date | null;
+  createdAt: Date;
+  options: { id: string; label: string; position: number }[];
+  participants: { id: string; name: string }[];
+};
+
+// Собирает публичное представление решения или null, если slug неизвестен. Статус приходит из
+// getDecisionBySlug уже актуальным (ленивое закрытие по дедлайну, PLAN.md §5).
+// Токены — admin_token решения и token участника — здесь не выбираются намеренно (PLAN.md §4).
+export async function getDecisionView(slug: string): Promise<DecisionView | null> {
+  const decision = await getDecisionBySlug(slug);
+  if (!decision) return null;
+
+  const [opts, parts] = await Promise.all([
+    db
+      .select({ id: options.id, label: options.label, position: options.position })
+      .from(options)
+      .where(eq(options.decisionId, decision.id))
+      .orderBy(asc(options.position)),
+    db
+      .select({ id: participants.id, name: participants.name })
+      .from(participants)
+      .where(eq(participants.decisionId, decision.id))
+      .orderBy(asc(participants.createdAt)),
+  ]);
+
+  return {
+    slug: decision.slug,
+    title: decision.title,
+    description: decision.description,
+    status: decision.status,
+    deadline: decision.deadline,
+    createdAt: decision.createdAt,
+    options: opts,
+    participants: parts,
+  };
 }
 
 // Генерирует slug (nanoid 10 символов) и проверяет отсутствие коллизии. Коллизия на таком алфавите
