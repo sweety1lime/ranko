@@ -28,7 +28,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
       <ResultsView slug={slug} fallbackData={results} />
 
       {results.status === 'open' && (
-        <Button variant="outline" render={<a href={`/d/${slug}`} />} className="h-11">
+        <Button variant="outline" render={<a href={`/d/${slug}`} />} nativeButton={false} className="h-11">
           Изменить мой порядок
         </Button>
       )}

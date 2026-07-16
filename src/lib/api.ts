@@ -10,8 +10,9 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
 }
 
 // Ошибка в едином формате { error } с честным HTTP-статусом (PLAN.md §6).
-export function apiError(error: string, status: number): Response {
-  return Response.json({ error }, { status });
+// headers — для ответов, которым мало тела: например, Retry-After у 429.
+export function apiError(error: string, status: number, headers?: HeadersInit): Response {
+  return Response.json({ error }, { status, headers });
 }
 
 export type ParseResult<T> = { ok: true; data: T } | { ok: false; response: Response };

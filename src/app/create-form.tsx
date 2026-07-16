@@ -189,7 +189,7 @@ function CreatedLinks({ created }: { created: Created }) {
         после обновления страницы её будет не восстановить.
       </p>
 
-      <Button render={<a href={publicUrl} />} className="h-12 text-base">
+      <Button render={<a href={publicUrl} />} nativeButton={false} className="h-12 text-base">
         Перейти к голосованию
       </Button>
     </div>

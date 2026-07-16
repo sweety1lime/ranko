@@ -4,9 +4,15 @@ import { db } from '@/lib/db';
 import { decisions, options } from '@/lib/db/schema';
 import { json, readJson } from '@/lib/api';
 import { generateUniqueSlug } from '@/lib/decisions';
+import { enforceCreateRateLimit } from '@/lib/rate-limit';
 import { createDecisionSchema } from '@/lib/schemas';
 
 export async function POST(req: Request): Promise<Response> {
+  // Лимит проверяем до разбора тела: смысл ограничения — не пустить дальше, а не оценить качество
+  // запроса. Флудеру честнее ответить 429, чем 400 на его же мусоре.
+  const limited = await enforceCreateRateLimit(req);
+  if (limited) return limited;
+
   const parsed = await readJson(req, createDecisionSchema);
   if (!parsed.ok) return parsed.response;
   const { title, description, options: labels, deadline } = parsed.data;

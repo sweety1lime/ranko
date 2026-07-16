@@ -7,6 +7,12 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // Подменяем клиента БД на общий тестовый инстанс PGlite (тот же модуль-синглтон, что мигрируем ниже).
 vi.mock('@/lib/db', async () => ({ db: (await import('@/test/db')).testDb }));
 
+// Лимитер здесь всегда пропускает. У тестовых запросов нет x-forwarded-for, значит все они делят
+// один ключ и на десятке решений упёрлись бы в реальное окно — тесты сыпались бы 429 по порядку
+// запуска, а не по существу. Само окно проверяется юнитами в src/lib/rate-limit.test.ts,
+// а его подключение к ручке — в describe «rate limit» ниже.
+vi.mock('@/lib/rate-limit', () => ({ enforceCreateRateLimit: vi.fn(async () => null) }));
+
 import { POST as createDecision } from '@/app/api/decisions/route';
 import { DELETE as deleteDecision, GET as getDecision } from '@/app/api/decisions/[slug]/route';
 import { POST as joinDecision } from '@/app/api/decisions/[slug]/participants/route';
@@ -15,6 +21,7 @@ import { PUT as vote } from '@/app/api/decisions/[slug]/vote/route';
 import { GET as getResults } from '@/app/api/decisions/[slug]/results/route';
 import { POST as closeDecision } from '@/app/api/decisions/[slug]/close/route';
 import { decisions } from '@/lib/db/schema';
+import { enforceCreateRateLimit } from '@/lib/rate-limit';
 import { ensureSchema, testDb, truncateAll } from '@/test/db';
 
 beforeAll(async () => {
@@ -157,6 +164,44 @@ describe('POST /api/decisions — валидация', () => {
     const { slug } = await makeDecision({ deadline: future });
     const read = await (await getDecision(jsonReq(undefined, 'GET'), ctx({ slug }))).json();
     expect(new Date(read.deadline).toISOString()).toBe(future);
+  });
+});
+
+// --- Создание: rate limit ------------------------------------------------------------------------
+
+describe('POST /api/decisions — rate limit', () => {
+  it('отказ лимитера отдаётся клиенту как есть, и решение не создаётся', async () => {
+    vi.mocked(enforceCreateRateLimit).mockResolvedValueOnce(
+      Response.json({ error: 'Слишком много' }, { status: 429, headers: { 'Retry-After': '42' } }),
+    );
+
+    const res = await createDecision(jsonReq({ title: 'Вопрос', options: ['A', 'B'] }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('42');
+
+    // Главное в этом тесте: до записи в БД дело не дошло — иначе лимит не лимит.
+    expect(await testDb.select().from(decisions)).toHaveLength(0);
+  });
+});
+
+// --- Заморозка вариантов (PLAN.md §2) ------------------------------------------------------------
+
+describe('варианты заморожены после первого голоса (PLAN.md §2)', () => {
+  it('ни одна ручка сценария не меняет набор вариантов', async () => {
+    // Свойство держится по построению: options пишутся один раз при создании, и правящей их ручки
+    // в §6 нет вовсе. Тест сторожит именно это — он покраснеет, если такая ручка когда-нибудь
+    // появится без разговора про ранжировки, которые она сломает.
+    const { slug, adminToken } = await makeDecision();
+    const before = await optionIdsOf(slug);
+
+    const anya = await join(slug, 'Аня');
+    const boris = await join(slug, 'Борис');
+    await vote(jsonReq({ participantToken: anya.token, order: before }), ctx({ slug }));
+    await vote(jsonReq({ participantToken: boris.token, order: [...before].reverse() }), ctx({ slug }));
+    await deleteParticipant(jsonReq({ adminToken }), ctx({ slug, id: boris.id }));
+    await closeDecision(jsonReq({ adminToken }), ctx({ slug }));
+
+    expect(await optionIdsOf(slug)).toEqual(before);
   });
 });
 

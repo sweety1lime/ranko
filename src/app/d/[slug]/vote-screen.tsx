@@ -20,8 +20,8 @@ import { RankList, type RankItem } from './rank-list';
 type Stage = 'name' | 'rank' | 'done';
 
 // Порядок вариантов для участника: сохранённый с прошлой отправки, иначе — как их завёл создатель.
-// Сохранённый чиним под текущий набор вариантов: заморозка вариантов — это Фаза 5, а до неё
-// набор мог измениться, и «протухший» порядок не должен ни терять, ни задваивать карточки.
+// Сохранённый сверяем с текущим набором: в localStorage запись живёт по slug неограниченно долго,
+// и она не должна ни терять карточки, ни задваивать их, что бы в ней ни лежало.
 function initialItems(decision: DecisionView, savedOrder: string[]): RankItem[] {
   const byId = new Map(decision.options.map((option) => [option.id, option]));
   const restored = savedOrder.map((id) => byId.get(id)).filter((option) => option !== undefined);
@@ -245,7 +245,7 @@ export function VoteScreen({
             </p>
           </div>
 
-          <Button render={<a href={resultsHref} />} className="h-12 text-base">
+          <Button render={<a href={resultsHref} />} nativeButton={false} className="h-12 text-base">
             К результатам
           </Button>
           <Button variant="outline" onClick={() => setStage('rank')} className="h-11">

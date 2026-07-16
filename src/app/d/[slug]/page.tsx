@@ -1,12 +1,32 @@
 // Страница голосования /d/{slug} (PLAN.md §7). Рендерим на сервере: основной сценарий —
 // открыли ссылку из мессенджера на телефоне, и вопрос должен быть виден сразу, без спиннера.
 // Читаем тем же getDecisionView, что и GET-ручка, — токены в него не попадают по построению.
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { getDecisionView } from '@/lib/decisions';
 import { participantCookieName } from '@/lib/participant-cookie';
 import { getParticipantState } from '@/lib/participants';
 import { VoteScreen } from './vote-screen';
+
+// Заголовок вкладки и текст в мессенджере — сам вопрос (PLAN.md §2 п.6). Саму картинку рисует
+// соседний opengraph-image.tsx; здесь её не упоминаем — Next подставит её в openGraph сам.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const decision = await getDecisionView(slug);
+  if (!decision) return { title: 'Решение не найдено' };
+
+  const description = decision.description ?? 'Расставьте варианты по вкусу — алгоритм найдёт компромисс.';
+  return {
+    title: decision.title,
+    description,
+    openGraph: { title: decision.title, description, type: 'website' },
+  };
+}
 
 export default async function VotePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
