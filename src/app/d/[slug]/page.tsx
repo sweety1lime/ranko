@@ -2,7 +2,7 @@
 // открыли ссылку из мессенджера на телефоне, и вопрос должен быть виден сразу, без спиннера.
 // Читаем тем же getDecisionView, что и GET-ручка, — токены в него не попадают по построению.
 import { cookies } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDecisionView } from '@/lib/decisions';
 import { participantCookieName } from '@/lib/participant-cookie';
 import { getParticipantState } from '@/lib/participants';
@@ -12,6 +12,10 @@ export default async function VotePage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const decision = await getDecisionView(slug);
   if (!decision) notFound();
+
+  // Голосовать больше не в чем — показываем итоги (PLAN.md §2, п.5). Статус здесь уже актуальный:
+  // getDecisionView лениво закрывает решение по дедлайну, так что редирект ловит и этот случай.
+  if (decision.status === 'closed') redirect(`/d/${slug}/results`);
 
   // httpOnly-cookie дублем к localStorage (PLAN.md §4): читаем её здесь, потому что клиенту она
   // недоступна. Узнали участника — сразу отдаём его имя и уже отправленный порядок, так что

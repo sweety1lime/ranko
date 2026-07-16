@@ -3,6 +3,7 @@
 // Экран голосования (PLAN.md §7): имя → ранжирование → отправка. Вернувшегося участника узнаём
 // по participantToken из localStorage и даём изменить порядок, пока голосование открыто.
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { DecisionView } from '@/lib/decisions';
 import type { ParticipantState } from '@/lib/participants';
 import {
@@ -30,6 +31,20 @@ function initialItems(decision: DecisionView, savedOrder: string[]): RankItem[] 
   return [...restored, ...rest].map(({ id, label }) => ({ id, label }));
 }
 
+// Закрыто ли голосование прямо сейчас. Нужна, чтобы развести две причины 403 на отправке голоса:
+// «закрыли, пока вы двигали карточки» и «админ удалил участника». Спрашиваем статус у сервера,
+// а не разбираем текст ошибки: текст — это сообщение человеку, а не контракт (PLAN.md §6).
+async function isVotingClosed(slug: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/decisions/${slug}`);
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.status === 'closed';
+  } catch {
+    return false;
+  }
+}
+
 // knownParticipant — участник, узнанный сервером по httpOnly-cookie (PLAN.md §4). Это второй,
 // независимый от localStorage источник личности: он работает, даже когда localStorage пуст.
 export function VoteScreen({
@@ -39,6 +54,7 @@ export function VoteScreen({
   decision: DecisionView;
   knownParticipant: ParticipantState | null;
 }) {
+  const router = useRouter();
   // Читаем localStorage лениво в инициализаторе: на сервере его нет, а useEffect дал бы моргание
   // экрана имени вернувшемуся участнику.
   const [participant, setParticipant] = useState<StoredParticipant | null>(() =>
@@ -60,18 +76,8 @@ export function VoteScreen({
 
   const resultsHref = `/d/${decision.slug}/results`;
 
-  if (decision.status === 'closed') {
-    return (
-      <EmptyState title="Голосование закрыто">
-        <p className="text-muted-foreground text-sm text-balance">
-          Организатор подвёл итоги — свой порядок изменить уже нельзя.
-        </p>
-        <Button render={<a href={resultsHref} />} className="mt-2 h-12 text-base">
-          Посмотреть результаты
-        </Button>
-      </EmptyState>
-    );
-  }
+  // Закрытое голосование сюда не доходит: страница редиректит на результаты ещё на сервере
+  // (PLAN.md §2, п.5). Закрытие прямо во время ранжирования ловим ниже, на ответе 403.
 
   // Токен не признан сервером: участника удалил админ. Забываем запись и просим имя заново,
   // вместо тупика с необъяснимой ошибкой. Cookie отсюда не стереть (она httpOnly), но и не надо:
@@ -135,10 +141,20 @@ export function VoteScreen({
 
       if (!response.ok) {
         const data = await response.json();
-        if (response.status === 403 && (participant || knownByCookie)) {
-          forgetParticipant();
-          return;
+
+        if (response.status === 403) {
+          // Голосование закрыли, пока мы двигали карточки, — менять уже нечего, отправляем к итогам.
+          if (await isVotingClosed(decision.slug)) {
+            router.replace(resultsHref);
+            return;
+          }
+          // Иначе 403 значит, что сервер не признал личность: участника удалил админ.
+          if (participant || knownByCookie) {
+            forgetParticipant();
+            return;
+          }
         }
+
         setError(data.error ?? 'Не удалось отправить голос');
         return;
       }
@@ -237,15 +253,6 @@ export function VoteScreen({
           </Button>
         </div>
       )}
-    </div>
-  );
-}
-
-function EmptyState({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-10 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
-      {children}
     </div>
   );
 }
