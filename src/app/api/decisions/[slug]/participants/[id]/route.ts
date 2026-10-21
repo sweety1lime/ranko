@@ -1,4 +1,4 @@
-// DELETE /api/decisions/{slug}/participants/{id} — админ удаляет участника (спам/дубль, PLAN.md §2).
+// DELETE /api/decisions/{slug}/participants/{id} — админ удаляет участника (спам или дубль).
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { participants } from '@/lib/db/schema';

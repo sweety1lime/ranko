@@ -1,4 +1,4 @@
-// httpOnly-cookie дублем к participantToken (PLAN.md §4). localStorage остаётся основным хранилищем
+// httpOnly-cookie дублем к participantToken. localStorage остаётся основным хранилищем
 // личности, cookie — запасным: пережил чистку localStorage (или ITP выселил его) — участника всё
 // равно узнаем, и он не проголосует вторым «призраком».
 //

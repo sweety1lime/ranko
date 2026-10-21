@@ -9,7 +9,7 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
   return Response.json(data, { status, headers });
 }
 
-// Ошибка в едином формате { error } с честным HTTP-статусом (PLAN.md §6).
+// Ошибка в едином формате { error } с честным HTTP-статусом.
 // headers — для ответов, которым мало тела: например, Retry-After у 429.
 export function apiError(error: string, status: number, headers?: HeadersInit): Response {
   return Response.json({ error }, { status, headers });
@@ -37,7 +37,7 @@ export async function readJson<T>(req: Request, schema: z.ZodType<T>): Promise<P
 }
 
 // Сравнение секретов за константное время. Хэшируем оба значения до фиксированной длины, поэтому
-// сравнение не утекает даже длину токена. Используется для adminToken (PLAN.md §6).
+// сравнение не утекает даже длину токена. Используется для adminToken.
 export function tokensEqual(a: string, b: string): boolean {
   const ha = createHash('sha256').update(a).digest();
   const hb = createHash('sha256').update(b).digest();

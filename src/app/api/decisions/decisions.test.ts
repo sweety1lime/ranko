@@ -1,4 +1,4 @@
-// Интеграционные тесты ручек API (PLAN.md §6, Фаза 2). Гоняют реальные route handlers против
+// Интеграционные тесты ручек API. Гоняют реальные route handlers против
 // PGlite (in-memory Postgres) — @/lib/db подменён на testDb через vi.mock. Проверяют полный сценарий
 // «создать → присоединиться → проголосовать → результаты → закрыть» и ветки ошибок 400/403/404/422.
 import { eq } from 'drizzle-orm';
@@ -55,7 +55,7 @@ const ctx = <T extends Record<string, string>>(params: T) => ({ params: Promise.
 
 type Created = { slug: string; adminToken: string };
 
-// Вариант в теле POST — объект { label, place? } (PLAN.md §6, Фаза 7).
+// Вариант в теле POST — объект { label, place? }.
 const opt = (label: string, place?: string) => (place === undefined ? { label } : { label, place });
 
 async function makeDecision(overrides: Record<string, unknown> = {}): Promise<Created> {
@@ -176,7 +176,7 @@ describe('POST /api/decisions — валидация', () => {
   });
 });
 
-// --- Места на карте (PLAN.md §8, Фаза 7) ---------------------------------------------------------
+// --- Места на карте ---------------------------------------------------------
 
 describe('POST /api/decisions — места', () => {
   const YA_LINK = 'https://yandex.ru/maps/-/CDeaZL0X';
@@ -192,7 +192,7 @@ describe('POST /api/decisions — места', () => {
     expect(read.options.map((o: { place: string | null }) => o.place)).toEqual([
       YA_LINK,
       'Большая Дмитровка 32',
-      // Вариант без места остаётся ровно таким, каким был до Фазы 7.
+      // Вариант без места хранится с place = null.
       null,
     ]);
   });
@@ -260,12 +260,12 @@ describe('POST /api/decisions — rate limit', () => {
   });
 });
 
-// --- Заморозка вариантов (PLAN.md §2) ------------------------------------------------------------
+// --- Заморозка вариантов ------------------------------------------------------------
 
-describe('варианты заморожены после первого голоса (PLAN.md §2)', () => {
+describe('варианты заморожены после первого голоса', () => {
   it('ни одна ручка сценария не меняет набор вариантов', async () => {
     // Свойство держится по построению: options пишутся один раз при создании, и правящей их ручки
-    // в §6 нет вовсе. Тест сторожит именно это — он покраснеет, если такая ручка когда-нибудь
+    // в API нет вовсе. Тест сторожит именно это — он покраснеет, если такая ручка когда-нибудь
     // появится без разговора про ранжировки, которые она сломает.
     const { slug, adminToken } = await makeDecision();
     const before = await optionIdsOf(slug);
@@ -313,9 +313,9 @@ describe('голосование и присоединение — 403/422', () 
   });
 });
 
-// --- httpOnly-cookie дублем к participantToken (PLAN.md §4) --------------------------------------
+// --- httpOnly-cookie дублем к participantToken --------------------------------------
 
-describe('httpOnly-cookie дублем к participantToken (PLAN.md §4)', () => {
+describe('httpOnly-cookie дублем к participantToken', () => {
   it('присоединение кладёт токен в httpOnly-cookie, привязанную к решению', async () => {
     const { slug } = await makeDecision();
     const res = await joinDecision(jsonReq({ name: 'Аня' }), ctx({ slug }));
@@ -423,7 +423,7 @@ describe('админ-действия — 403/404 и удаление', () => {
 
 // --- Ленивое закрытие по дедлайну ----------------------------------------------------------------
 
-describe('ленивое закрытие по дедлайну (PLAN.md §5)', () => {
+describe('ленивое закрытие по дедлайну', () => {
   it('чтение после прошедшего дедлайна переводит статус в closed и запрещает голос', async () => {
     const { slug } = await makeDecision();
     const p = await join(slug, 'Аня');

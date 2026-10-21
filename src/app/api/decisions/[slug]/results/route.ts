@@ -1,4 +1,4 @@
-// GET /api/decisions/{slug}/results — текущий расклад по методу Борда (PLAN.md §6).
+// GET /api/decisions/{slug}/results — текущий расклад по методу Борда.
 import { apiError, json } from '@/lib/api';
 import { getResults } from '@/lib/results';
 

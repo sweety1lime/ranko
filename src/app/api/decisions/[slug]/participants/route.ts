@@ -1,4 +1,4 @@
-// POST /api/decisions/{slug}/participants — участник присоединяется к голосованию (PLAN.md §6).
+// POST /api/decisions/{slug}/participants — участник присоединяется к голосованию.
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { participants } from '@/lib/db/schema';
@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: Params): Promise<Response> 
     .values({ decisionId: decision.id, name: parsed.data.name, token })
     .returning({ id: participants.id });
 
-  // participantToken отдаём только владельцу здесь; в GET-ответах он не появляется (PLAN.md §4).
+  // participantToken отдаём только владельцу здесь; в GET-ответах он не появляется.
   // Тем же ответом кладём его httpOnly-cookie дублем: localStorage вычистят — узнаем по cookie.
   return json({ participantId: participant.id, participantToken: token }, 201, {
     'Set-Cookie': buildParticipantCookie(slug, token),

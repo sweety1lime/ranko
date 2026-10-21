@@ -21,7 +21,7 @@ export type ResultsResponse = {
 };
 
 // Собирает расклад или null, если slug неизвестен. Статус приходит из getDecisionBySlug уже
-// актуальным (ленивое закрытие по дедлайну, PLAN.md §5).
+// актуальным (ленивое закрытие по дедлайну).
 export async function getResults(slug: string): Promise<ResultsResponse | null> {
   const decision = await getDecisionBySlug(slug);
   if (!decision) return null;
@@ -48,7 +48,7 @@ export async function getResults(slug: string): Promise<ResultsResponse | null> 
       .where(eq(participants.decisionId, decision.id)),
   ]);
 
-  // Сид тай-брейка = slug (PLAN.md §3): результат детерминирован и не «прыгает» при поллинге.
+  // Сид тай-брейка = slug: результат детерминирован и не «прыгает» при поллинге.
   const { tally, winnerId } = computeResults(opts, rankRows, decision.slug);
 
   // Место домешиваем после подсчёта, а не протаскиваем через computeResults: очки от адреса

@@ -1,11 +1,11 @@
-// Сквозной сценарий PLAN.md §8 (Фаза 5): создать → 2 участника → результаты → закрыть.
+// Сквозной сценарий: создать → 2 участника → результаты → закрыть.
 // Это единственный e2e в проекте, и он нарочно идёт продуктовым путём: только то, что видит и
 // нажимает человек, — никаких прямых вызовов API, кроме уборки за собой в конце.
 import { expect, test, type BrowserContext } from '@playwright/test';
 
 const OPTIONS = ['Пицца', 'Бар', 'Кино'];
 
-// Два способа задать место (Фаза 7): «Пицце» — ссылка из «Поделиться», «Бару» — адрес текстом.
+// Два способа задать место: «Пицце» — ссылка из «Поделиться», «Бару» — адрес текстом.
 // Второй способ и есть единственная причина, по которой у решения бывает город.
 const PIZZA_PLACE = 'https://yandex.ru/maps/-/CDeaZL0X';
 const BAR_PLACE = 'Большая Дмитровка 32';
@@ -25,7 +25,7 @@ async function voteAs(context: BrowserContext, slug: string, name: string, favou
   await page.getByLabel('Как вас зовут?').fill(name);
   await page.getByRole('button', { name: 'Участвовать' }).click();
 
-  // Место видно прямо в карточке — ради этого Фаза 7 и затевалась: выбирать вслепую нельзя.
+  // Место видно прямо в карточке, чтобы не выбирать вслепую.
   // Ссылка ведёт на саму точку.
   const map = page.getByRole('link', { name: 'На карте — открыть на карте' });
   await expect(map).toHaveAttribute('href', PIZZA_PLACE);
@@ -38,7 +38,7 @@ async function voteAs(context: BrowserContext, slug: string, name: string, favou
     `https://yandex.ru/maps/?text=${encodeURIComponent(`${CITY}, ${BAR_PLACE}`)}`,
   );
 
-  // «Кино» осталось без места — карточка без ссылки, как и до Фазы 7.
+  // «Кино» осталось без места — у карточки нет ссылки.
   await expect(page.getByRole('link', { name: /открыть на карте/ })).toHaveCount(2);
 
   // Поднимаем избранника на первое место: жмём «вверх», пока кнопка не выключится (значит, он первый).
@@ -119,7 +119,7 @@ test('создать → два участника голосуют → резу
       await page.getByRole('button', { name: 'Закрыть', exact: true }).click();
       await expect(page.getByText('Голосование закрыто — участники видят только результаты')).toBeVisible();
 
-      // --- После закрытия голосовать некуда: ссылка ведёт на итоги (PLAN.md §2 п.5) ---
+      // --- После закрытия голосовать некуда: ссылка ведёт на итоги ---
       const late = await borisContext.newPage();
       await late.goto(`/d/${slug}`);
       await expect(late).toHaveURL(new RegExp(`/d/${slug}/results$`));

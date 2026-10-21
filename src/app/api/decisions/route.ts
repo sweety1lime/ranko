@@ -1,4 +1,4 @@
-// POST /api/decisions — создание решения (PLAN.md §6).
+// POST /api/decisions — создание решения.
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { decisions, options } from '@/lib/db/schema';
@@ -41,6 +41,6 @@ export async function POST(req: Request): Promise<Response> {
     })),
   );
 
-  // adminToken отдаём один раз создателю — дальше он живёт в админ-ссылке (PLAN.md §2).
+  // adminToken отдаём один раз создателю — дальше он живёт в админ-ссылке.
   return json({ slug, adminToken }, 201);
 }

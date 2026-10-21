@@ -1,6 +1,6 @@
 'use client';
 
-// Экран голосования (PLAN.md §7): имя → ранжирование → отправка. Вернувшегося участника узнаём
+// Экран голосования: имя → ранжирование → отправка. Вернувшегося участника узнаём
 // по participantToken из localStorage и даём изменить порядок, пока голосование открыто.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -41,7 +41,7 @@ function initialItems(decision: DecisionView, savedOrder: string[]): RankItem[] 
 
 // Закрыто ли голосование прямо сейчас. Нужна, чтобы развести две причины 403 на отправке голоса:
 // «закрыли, пока вы двигали карточки» и «админ удалил участника». Спрашиваем статус у сервера,
-// а не разбираем текст ошибки: текст — это сообщение человеку, а не контракт (PLAN.md §6).
+// а не разбираем текст ошибки: текст — это сообщение человеку, а не контракт.
 async function isVotingClosed(slug: string): Promise<boolean> {
   try {
     const response = await fetch(`/api/decisions/${slug}`);
@@ -53,7 +53,7 @@ async function isVotingClosed(slug: string): Promise<boolean> {
   }
 }
 
-// knownParticipant — участник, узнанный сервером по httpOnly-cookie (PLAN.md §4). Это второй,
+// knownParticipant — участник, узнанный сервером по httpOnly-cookie. Это второй,
 // независимый от localStorage источник личности: он работает, даже когда localStorage пуст.
 export function VoteScreen({
   decision,
@@ -84,8 +84,8 @@ export function VoteScreen({
 
   const resultsHref = `/d/${decision.slug}/results`;
 
-  // Закрытое голосование сюда не доходит: страница редиректит на результаты ещё на сервере
-  // (PLAN.md §2, п.5). Закрытие прямо во время ранжирования ловим ниже, на ответе 403.
+  // Закрытое голосование сюда не доходит: страница редиректит на результаты ещё на сервере.
+  // Закрытие прямо во время ранжирования ловим ниже, на ответе 403.
 
   // Токен не признан сервером: участника удалил админ. Забываем запись и просим имя заново,
   // вместо тупика с необъяснимой ошибкой. Cookie отсюда не стереть (она httpOnly), но и не надо:

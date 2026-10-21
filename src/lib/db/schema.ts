@@ -1,5 +1,4 @@
-// Схема БД Ranko — PLAN.md, раздел 5.
-// Драйвер — Neon HTTP (см. src/lib/db/index.ts). Меняется только миграциями drizzle-kit.
+// Схема БД Ranko. Драйвер — Neon HTTP (см. src/lib/db/index.ts). Меняется только миграциями drizzle-kit.
 import {
   index,
   integer,
@@ -16,7 +15,7 @@ import {
 export const decisionStatus = pgEnum('decision_status', ['open', 'closed']);
 
 // Решение — вопрос с вариантами. slug для публичной ссылки, adminToken для админ-доступа.
-// Верхние границы длин полей — здесь (varchar); нижние границы валидирует zod на границе API (Фаза 2).
+// Верхние границы длин полей — здесь (varchar); нижние границы валидирует zod на границе API.
 export const decisions = pgTable('decisions', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: varchar('slug', { length: 10 }).notNull().unique(),
@@ -40,8 +39,8 @@ export const options = pgTable(
       .notNull()
       .references(() => decisions.id, { onDelete: 'cascade' }),
     label: varchar('label', { length: 80 }).notNull(),
-    // Место варианта: либо ссылка на Яндекс.Карты, либо адрес текстом — одно поле на оба случая
-    // (PLAN.md §8, Фаза 7). Что именно лежит, разбирает src/lib/place.ts при рендере.
+    // Место варианта: либо ссылка на Яндекс.Карты, либо адрес текстом — одно поле на оба случая.
+    // Что именно лежит, разбирает src/lib/place.ts при рендере.
     // 200 символов: короткая ссылка из «Поделиться» — около 35, адрес текстом влезает с запасом.
     place: varchar('place', { length: 200 }),
     position: integer('position').notNull(),
@@ -49,7 +48,7 @@ export const options = pgTable(
   (t) => [index('options_decision_id_idx').on(t.decisionId)],
 );
 
-// Участник голосования. token возвращается только владельцу и никогда не отдаётся в GET (PLAN.md §4).
+// Участник голосования. token возвращается только владельцу и никогда не отдаётся в GET.
 export const participants = pgTable(
   'participants',
   {

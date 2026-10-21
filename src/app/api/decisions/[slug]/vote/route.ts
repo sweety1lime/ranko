@@ -1,4 +1,4 @@
-// PUT /api/decisions/{slug}/vote — участник задаёт полный порядок вариантов (PLAN.md §6).
+// PUT /api/decisions/{slug}/vote — участник задаёт полный порядок вариантов.
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { options, participants, rankings } from '@/lib/db/schema';
@@ -19,8 +19,8 @@ export async function PUT(req: Request, { params }: Params): Promise<Response> {
   if (!decision) return apiError('Решение не найдено', 404);
   if (decision.status === 'closed') return apiError('Голосование закрыто', 403);
 
-  // Личность: токен из тела (обычный путь — он есть в localStorage), иначе httpOnly-cookie дублем
-  // (PLAN.md §4) — единственный источник, когда localStorage вычистили. Cookie привязана к slug,
+  // Личность: токен из тела (обычный путь — он есть в localStorage), иначе httpOnly-cookie,
+  // единственный источник, когда localStorage вычистили. Cookie привязана к slug,
   // поэтому чужое решение ею не открыть.
   const participantToken = parsed.data.participantToken ?? readParticipantCookie(req, slug);
   if (!participantToken) return apiError('Отсутствует токен участника', 403);

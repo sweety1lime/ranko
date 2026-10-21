@@ -1,4 +1,4 @@
-// POST /api/decisions/{slug}/close — админ закрывает голосование досрочно (PLAN.md §2, §6).
+// POST /api/decisions/{slug}/close — админ закрывает голосование досрочно.
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { decisions } from '@/lib/db/schema';

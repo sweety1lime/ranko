@@ -1,6 +1,6 @@
 'use client';
 
-// Живой расклад решения (PLAN.md §7): победитель крупно, «почему», таблица очков и кто уже
+// Живой расклад решения: победитель крупно, «почему», таблица очков и кто уже
 // проголосовал. Поллинг раз в 4 секунды — чтобы два окна видели голоса друг друга сами.
 import { ExternalLink } from 'lucide-react';
 import useSWR from 'swr';
@@ -12,7 +12,7 @@ import type { ResultsResponse } from '@/lib/results';
 import type { TallyEntry } from '@/lib/borda';
 
 // Порядок строк таблицы. Победитель всегда первый: очков у него по определению максимум, но при
-// равенстве финальный тай-брейк на сервере идёт по сид-хэшу (PLAN.md §3), который отсюда не виден, —
+// равенстве финальный тай-брейк на сервере идёт по сид-хэшу, который отсюда не виден, —
 // поэтому не пересчитываем победителя, а доверяем winnerId с ручки.
 function compareRows(winnerId: string | null) {
   return (a: TallyEntry, b: TallyEntry) => {
@@ -24,7 +24,7 @@ function compareRows(winnerId: string | null) {
   };
 }
 
-// Объяснение победы словами (PLAN.md §3: показать не только победителя, но и «почему»).
+// Объяснение победы словами.
 function explainWinner(winner: TallyEntry): string {
   const points = `${winner.points} ${plural(winner.points, 'очко', 'очка', 'очков')}`;
   const firsts = `${winner.firstPlaces} ${plural(winner.firstPlaces, 'первое место', 'первых места', 'первых мест')}`;
@@ -36,7 +36,7 @@ function explainWinner(winner: TallyEntry): string {
 export function ResultsView({ slug, fallbackData }: { slug: string; fallbackData: ResultsResponse }) {
   const { data, error } = useSWR<ResultsResponse>(`/api/decisions/${slug}/results`, fetcher, {
     fallbackData,
-    // Закрытое голосование больше не меняется — поллить нечего (PLAN.md §2, п.5).
+    // Закрытое голосование больше не меняется — поллить нечего.
     refreshInterval: (latest) => (latest?.status === 'closed' ? 0 : 4000),
   });
 

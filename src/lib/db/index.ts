@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
 // На Vercel (serverless) подключаемся к Neon только через HTTP-драйвер —
-// обычный TCP-`pg` исчерпал бы лимит соединений. См. PLAN.md, раздел 4.
+// обычный TCP-`pg` исчерпал бы лимит соединений.
 if (!process.env.DATABASE_URL) {
   throw new Error(
     'DATABASE_URL не задан. Скопируй .env.example в .env.local и вставь строку подключения Neon.',

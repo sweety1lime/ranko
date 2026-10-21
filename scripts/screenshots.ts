@@ -1,4 +1,4 @@
-// Скриншоты для README (PLAN.md §8, Фаза 6). Запуск: сначала npm run dev, потом npm run screenshots.
+// Скриншоты для README. Запуск: сначала npm run dev, потом npm run screenshots.
 //
 // Отдельным скриптом, а не спекой Playwright: npm run test:e2e — это проверка, она не должна
 // переписывать файлы в репозитории. Здесь наоборот, запись картинок и есть смысл запуска.
@@ -35,7 +35,7 @@ async function shoot(page: Page, name: string) {
 async function main() {
   await mkdir(outDir, { recursive: true });
 
-  // Основной сценарий продукта — ссылка из мессенджера на телефоне (PLAN.md §7), поэтому и
+  // Основной сценарий продукта — ссылка из мессенджера на телефоне, поэтому и
   // скриншоты мобильные, тот же Pixel 5, что и в playwright.config.ts.
   const browser = await chromium.launch();
   const context = await browser.newContext({ ...devices['Pixel 5'] });

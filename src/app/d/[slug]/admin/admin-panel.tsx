@@ -1,8 +1,8 @@
 'use client';
 
-// Панель админа (PLAN.md §2, п.5): те же результаты + закрыть голосование, удалить участника,
-// удалить решение. adminToken живёт здесь и уходит в тело запросов — это by design (PLAN.md §4:
-// право админа = знание токена, он и так у админа в адресной строке).
+// Панель админа: те же результаты + закрыть голосование, удалить участника,
+// удалить решение. adminToken живёт здесь и уходит в тело запросов — так и задумано:
+// право админа = знание токена, он и так у админа в адресной строке.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
@@ -38,8 +38,8 @@ export function AdminPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Список участников — из публичного представления решения: ручка результатов отдаёт только имена
-  // (PLAN.md §6), а для удаления нужен id. Тот же интервал 4 с, что и у результатов.
+  // Список участников — из публичного представления решения: ручка результатов отдаёт только имена,
+  // а для удаления нужен id. Тот же интервал 4 с, что и у результатов.
   const { data: decision, mutate: mutateDecision } = useSWR<AdminDecisionState>(
     `/api/decisions/${slug}`,
     fetcher,
@@ -57,7 +57,7 @@ export function AdminPanel({
   const state = decision ?? fallbackDecision;
   const closed = state.status === 'closed';
 
-  // Все админские ручки устроены одинаково: adminToken в теле, ошибка — { error } (PLAN.md §6).
+  // Все админские ручки устроены одинаково: adminToken в теле, ошибка — { error }.
   async function request(url: string, method: 'POST' | 'DELETE'): Promise<boolean> {
     setError(null);
     setBusy(true);

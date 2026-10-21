@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { decisions, options, participants, type Decision } from '@/lib/db/schema';
 
-// Грузит решение по slug и лениво закрывает его, если прошёл дедлайн (PLAN.md §5): любой read/write
+// Грузит решение по slug и лениво закрывает его, если прошёл дедлайн: любой read/write
 // при now > deadline сначала переводит статус в 'closed'. Возвращает решение (уже с актуальным
 // статусом) или null, если такого slug нет.
 export async function getDecisionBySlug(slug: string): Promise<Decision | null> {
@@ -37,8 +37,8 @@ export type DecisionView = {
 };
 
 // Собирает публичное представление решения или null, если slug неизвестен. Статус приходит из
-// getDecisionBySlug уже актуальным (ленивое закрытие по дедлайну, PLAN.md §5).
-// Токены — admin_token решения и token участника — здесь не выбираются намеренно (PLAN.md §4).
+// getDecisionBySlug уже актуальным (ленивое закрытие по дедлайну).
+// Токены — admin_token решения и token участника — здесь не выбираются намеренно.
 export async function getDecisionView(slug: string): Promise<DecisionView | null> {
   const decision = await getDecisionBySlug(slug);
   if (!decision) return null;

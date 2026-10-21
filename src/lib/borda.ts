@@ -1,4 +1,4 @@
-// Метод Борда — алгоритм компромисса Ranko (PLAN.md, раздел 3).
+// Метод Борда — алгоритм компромисса Ranko.
 // Чистая функция без зависимостей от БД: на вход варианты + ранжировки, на выход расклад очков
 // и победитель. Детерминированность гарантируется тем, что финальный тай-брейк использует
 // сид = slug решения, поэтому результат не «прыгает» при поллинге страницы результатов.
@@ -80,7 +80,7 @@ export function computeResults(
   return { tally, winnerId: winner.optionId };
 }
 
-// Возвращает true, если a должен победить b по каскаду тай-брейков PLAN.md §3.
+// Возвращает true, если a должен победить b по каскаду тай-брейков из computeResults.
 function beats(a: TallyEntry, b: TallyEntry, seed: string): boolean {
   if (a.points !== b.points) return a.points > b.points;
   if (a.firstPlaces !== b.firstPlaces) return a.firstPlaces > b.firstPlaces;

@@ -1,6 +1,6 @@
 'use client';
 
-// Ссылка с кнопкой «скопировать» (PLAN.md §2). Обе ссылки после создания решения — через неё.
+// Ссылка с кнопкой «скопировать». Обе ссылки после создания решения — через неё.
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
